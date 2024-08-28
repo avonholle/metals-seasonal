@@ -1,0 +1,1956 @@
+---
+title: 'Seasonal patterns in toenail metals'
+author: "Katie Wojcik and Ann Von Holle"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+geometry: margin=1.5cm
+urlcolor: blue
+linkcolor: magenta
+citecolor: red
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'H',
+                      messages=F)
+```
+
+```{r}
+# bring in packages 
+require(knitr)
+require(haven)
+require(data.table)
+require(ggplot2)
+require(kableExtra)
+require(labelled)
+require(gtsummary) # this table making package works better with haven objects
+library(dplyr)
+library(tidyr)
+library(plyr)
+library(grid)
+require(boot)
+require(tableone)
+library(tidyverse)
+require(gridExtra)
+require(cowplot)
+library(descr)
+library(readxl)
+require(stargazer)
+
+```
+
+
+```{r}
+# import data
+
+setwd("C:\\Users\\vonholleaf\\National Institutes of Health\\NIEHS-Von Holle BCBB Postdoctoral work - General\\Sister Study Data")
+
+#metal.data <- read_sas("dr00224_05_01.sas7bdat") # don't load sas data set. takes too long from server
+
+load("df224_05_02_convert.RData") # load df1 from data-handling.Rmd
+# need to reduce
+
+dim(df1)
+metal.data = df1
+
+```
+
+
+```{r}
+# check sample size
+
+# which variables have DC baseline toenails measures in them?
+nm1 = names(metal.data)[grepl("DC_Baseline_Toenail", names(metal.data))]
+nm1[1:16]
+
+# data with DC baseline variables
+metal.data.dc = metal.data[c(nm1[1:16], "DC_Baseline_Toenail_Age", 'UMN_Iron_Subcohort')]
+dim(metal.data.dc)
+
+# pick rows with at least one non-missing baseline toenail data and non-missing age
+metal.data.dc.cc = metal.data.dc[!is.na(rowSums(metal.data.dc[,1:17])),]
+dim(metal.data.dc.cc) # 1427
+summary(metal.data.dc.cc$DC_Baseline_Toenail_Age)
+
+table(metal.data.dc.cc$UMN_Iron_Subcohort)
+
+# which variables have DC_ in variable name?
+names(metal.data)[grepl("DC_", names(metal.data))]
+table(!is.na(metal.data$DC_Baseline_Toenail_Age)) # 1428 with non-missing age for DC Baseline
+
+names(metal.data)[grepl("UMN", names(metal.data))]
+table(metal.data$UMN_Iron_Subcohort)
+
+# which variables have RTI in them?
+nm2 = names(metal.data)[grepl("RTI_Toenail", names(metal.data))]
+nm2
+
+```
+
+```{r}
+
+# clean data, select variables  
+metal.data.cleaned <- metal.data %>% select(AgeExact_Baseline, EX_BMI_final, SM_SmokeStatusN, SE18, SE_RACE_ETH, DC_Baseline_Batch, DC_Baseline_Toenail_Age, DC_Baseline_Toenail_AgeExact, DC_Baseline_Toenail_V_Adj, DC_Baseline_Toenail_Cr_Adj, DC_Baseline_Toenail_Mn_Adj, DC_Baseline_Toenail_Fe_Adj, DC_Baseline_Toenail_Co_Adj, DC_Baseline_Toenail_Ni_Adj, DC_Baseline_Toenail_Cu_Adj, DC_Baseline_Toenail_Zn_Adj, DC_Baseline_Toenail_As_Adj, DC_Baseline_Toenail_Se_Adj, DC_Baseline_Toenail_Mo_Adj, DC_Baseline_Toenail_Cd_Adj, DC_Baseline_Toenail_Sn_Adj, DC_Baseline_Toenail_Sb_Adj, DC_Baseline_Toenail_Hg_Adj, DC_Baseline_Toenail_Pb_Adj, DC_SCL_Batch, DC_SCL_Toenail_V_Adj, DC_SCL_Toenail_Cr_Adj, DC_SCL_Toenail_Mn_Adj, DC_SCL_Toenail_Fe_Adj, DC_SCL_Toenail_Co_Adj, DC_SCL_Toenail_Ni_Adj, DC_SCL_Toenail_Cu_Adj, DC_SCL_Toenail_Zn_Adj, DC_SCL_Toenail_As_Adj, DC_SCL_Toenail_Se_Adj, DC_SCL_Toenail_Mo_Adj, DC_SCL_Toenail_Cd_Adj, DC_SCL_Toenail_Sn_Adj, DC_SCL_Toenail_Sb_Adj,
+DC_Baseline_Toenail_Sb_Adj, DC_SCL_Toenail_Hg_Adj, DC_SCL_Toenail_Pb_Adj, DC_SCL_Toenail_AgeExact, DC_SCL_Toenail_Age, DR224_DC_Baseline_ToenailColl_Mo, DR224_DC_Baseline_ToenailColl_Yr, DR224_DC_Bsl_ToenailColl_Day, DR224_DC_SCL_ToenailColl_Day, DR224_DC_SCL_ToenailColl_Mo, DR224_DC_SCL_ToenailColl_Yr, DR224_RTI_Toenail_Collday_Big, DR224_RTI_Toenail_Collday_Other, DR224_RTI_Toenail_CollMo_Big, DR224_RTI_Toenail_CollMo_Other, DR224_RTI_Toenail_CollYr_Big, DR224_RTI_Toenail_CollYr_Other, RTI_Toenail_Source, RTI_Toenail_CollDate_BigFLAG, RTI_Toenail_CollAgeExact_Big, RTI_Toenail_CollAge_Big, RTI_Toenail_CollDate_OtherFLAG, RTI_Toenail_CollAgeExact_Other, RTI_Toenail_CollAge_Other, RTI_Toenail_al_FLAG_Imp, RTI_Toenail_al_Adj, RTI_Toenail_as_Adj, RTI_Toenail_as_FLAG_Imp, RTI_Toenail_cd_Adj, RTI_Toenail_cd_FLAG_Imp, RTI_Toenail_co_Adj, RTI_Toenail_co_FLAG_Imp, RTI_Toenail_cr_Adj, RTI_Toenail_cr_FLAG_Imp, RTI_Toenail_cu_Adj, RTI_Toenail_cu_FLAG_Imp, RTI_Toenail_fe_Adj, RTI_Toenail_fe_FLAG_Imp, RTI_Toenail_mn_Adj, RTI_Toenail_mn_FLAG_Imp, RTI_Toenail_mo_Adj, RTI_Toenail_mo_FLAG_Imp, RTI_Toenail_ni_Adj, RTI_Toenail_ni_FLAG_Imp, RTI_Toenail_pb_Adj, RTI_Toenail_pb_FLAG_Imp, RTI_Toenail_sb_Adj, RTI_Toenail_sb_FLAG_Imp, RTI_Toenail_se_Adj, RTI_Toenail_se_FLAG_Imp, RTI_Toenail_sn_Adj, RTI_Toenail_sn_FLAG_Imp, RTI_Toenail_zn_Adj, RTI_Toenail_zn_FLAG_Imp)  %>%
+  mutate(SM_SmokeStatusN = recode_factor(.x = SM_SmokeStatusN,
+                                  '0' = 'Never smoked',
+                                  '1' = 'Past smoker',
+                                  '2' = 'Current smoker'))%>%
+  mutate(SE18 = recode_factor(.x = SE18,
+                              '1' = 'No formal schooling',
+                              '2' = 'Less than or equal to 6th grade',
+                              '3' = 'Greater than or equal to 7th grade but less than high school degree',
+                              '4' = 'Completed high school',
+                              '5' = 'GED General Education Diploma',
+                              '6' = 'Some college but no degree',
+                              '7' = 'Associate or technical degree',
+                              '8' = 'Bachelor\'s Degree',
+                              '9' = 'Master\'s Degree',
+                              '10' = 'Doctoral Degree'))%>%
+  mutate(SE_RACE_ETH = recode_factor(.x = SE_RACE_ETH,
+                                     '0' = 'Non-Hisp White',
+                                     '1' = 'Non-Hisp Black',
+                                     '2' = 'Hispanic',
+                                     '3' = 'Other'))
+
+```
+
+
+```{r}
+
+summary(metal.data.cleaned$DR224_RTI_Toenail_Collday_Big)
+summary(metal.data.cleaned$DR224_RTI_Toenail_CollMo_Big)
+
+summary(metal.data.cleaned[!(is.na(metal.data.cleaned$DC_Baseline_Toenail_Age)),
+  c('DC_Baseline_Toenail_V_Adj', 'DC_Baseline_Toenail_Cr_Adj', 'DC_Baseline_Toenail_Mn_Adj', 'DC_Baseline_Toenail_Fe_Adj', 'DC_Baseline_Toenail_Co_Adj', 'DC_Baseline_Toenail_Ni_Adj', 'DC_Baseline_Toenail_Cu_Adj', 'DC_Baseline_Toenail_Zn_Adj', 'DC_Baseline_Toenail_As_Adj', 'DC_Baseline_Toenail_Se_Adj', 'DC_Baseline_Toenail_Mo_Adj', 'DC_Baseline_Toenail_Cd_Adj', 'DC_Baseline_Toenail_Sn_Adj', 'DC_Baseline_Toenail_Sb_Adj', 'DC_Baseline_Toenail_Hg_Adj', 'DC_Baseline_Toenail_Pb_Adj')])
+
+```
+
+
+## Create indicator variable for lab, Dartmouth and RTI
+
+```{r}
+
+set.seed(2858)
+# Make study variable
+
+metal.data.cleaned = within(metal.data.cleaned, {
+  dartmouth.study = ifelse(  !(is.na(DC_Baseline_Toenail_Fe_Adj)) | 
+                               !(is.na(DC_Baseline_Toenail_As_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Cd_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Co_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Cr_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Cu_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Hg_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Mn_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Mo_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Ni_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Pb_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Sb_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Se_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Sn_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_V_Adj)) |
+                               !(is.na(DC_Baseline_Toenail_Zn_Adj)), 1, 0)
+ 
+    rti.study = ifelse( !(is.na(RTI_Toenail_al_Adj)) |
+                        !(is.na(RTI_Toenail_as_Adj)) |
+                        !(is.na(RTI_Toenail_cd_Adj)) |
+                        !(is.na(RTI_Toenail_co_Adj)) |
+                        !(is.na(RTI_Toenail_cr_Adj)) |
+                        !(is.na(RTI_Toenail_cu_Adj)) |
+                        !(is.na(RTI_Toenail_fe_Adj)) |
+                        !(is.na(RTI_Toenail_mn_Adj)) |
+                        !(is.na(RTI_Toenail_mo_Adj)) |
+                        !(is.na(RTI_Toenail_ni_Adj)) |
+                        !(is.na(RTI_Toenail_pb_Adj)) |
+                        !(is.na(RTI_Toenail_sb_Adj)) |
+                        !(is.na(RTI_Toenail_se_Adj)) |
+                        !(is.na(RTI_Toenail_sn_Adj)) |
+                        !(is.na(RTI_Toenail_zn_Adj)) , 1, 0)
+    
+
+    study = ifelse(dartmouth.study==1 & rti.study==1, 0,
+                   ifelse(dartmouth.study==1, 0,
+                          ifelse(rti.study==1, 1, NA)))
+    
+    study2 = ifelse(dartmouth.study==1 & rti.study==1, 1,
+                   ifelse(dartmouth.study==1, 2,
+                          ifelse(rti.study==1, 3, NA)))    
+        
+    # randomly assign dartmouth and rti samples to variable with overlap between rti and dartmouth 50/50
+    # doesn't work in function
+    
+    # study.split=study
+    # study.split = replace(study.split, 
+    #                            sample(w <- which(study ==1), length(w)*0.5), 2)
+
+})
+  
+table(metal.data.cleaned$dartmouth.study)
+table(metal.data.cleaned$study2)
+
+mdc = data.frame(metal.data.cleaned[complete.cases(metal.data.cleaned$study2),])
+# Randomly assign dartmouth and rti samples to variable with overlap between rti and dartmouth
+table(mdc$study2)
+
+mdc$study.split=mdc$study
+
+w = which(mdc$study2==1); head(w)
+length(w)*0.5
+
+mdc$study.split2 = replace(mdc$study.split, 
+                          sample(w ,length(w)*0.5), 1) # assign random half of overlap to rti
+table(mdc$study.split2)
+
+table(mdc$dartmouth.study) # check
+table(mdc$rti.study) # check
+table(mdc$study) #check
+table(mdc$study.split) # check
+
+with(mdc, table(dartmouth.study, rti.study))
+# note: 94 people in dartmouth and rti samples
+
+with(mdc, table( dartmouth.study, rti.study, study.split2))
+with(mdc, table( study.split2))
+
+summary(mdc)
+
+summary(mdc[mdc$study==1,'RTI_Toenail_fe_Adj'])
+summary(mdc[mdc$study==0,'DC_Baseline_Toenail_Fe_Adj'])
+
+
+```
+
+
+```{r}
+# make day for rti and dartmouth samples
+# source: https://stackoverflow.com/questions/67777098/convert-day-and-month-to-number-of-the-year-1-365-in-r
+
+# rti
+mdc = mdc %>% 
+  # combine into one variable
+  tidyr::unite("rti.date", DR224_RTI_Toenail_CollYr_Big, DR224_RTI_Toenail_CollMo_Big, DR224_RTI_Toenail_Collday_Big,
+               sep = "-", remove = FALSE) %>% 
+  # parse as date
+  dplyr::mutate(rti.date = lubridate::ymd(rti.date)) %>% 
+  # extract day of year
+  dplyr::mutate(rti.doy = lubridate::yday(rti.date))
+
+head(mdc[c('DR224_RTI_Toenail_CollYr_Big', 'DR224_RTI_Toenail_CollMo_Big', 'DR224_RTI_Toenail_Collday_Big', 'rti.doy')]) # check
+
+# dartmouth
+mdc = mdc %>% 
+  # combine into one variable
+  tidyr::unite("dart.date", DR224_DC_Baseline_ToenailColl_Yr, DR224_DC_Baseline_ToenailColl_Mo, DR224_DC_Bsl_ToenailColl_Day, 
+               sep = "-", remove = FALSE) %>% 
+  # parse as date
+  dplyr::mutate(dart.date = lubridate::ymd(dart.date)) %>% 
+  # extract day of year
+  dplyr::mutate(dart.doy = lubridate::yday(dart.date))
+
+head(mdc[c('DR224_DC_Baseline_ToenailColl_Yr', 'DR224_DC_Baseline_ToenailColl_Mo', 'DR224_DC_Bsl_ToenailColl_Day', 'dart.doy')]) # check
+
+
+
+# make new metal value based on study
+
+#rti:     al as cd co cr cu fe mn mo ni pb sb se sn zn
+#dartmouth:  fe as cd co cr cu hg mn mo ni pb sb se sn v zn
+overlap.metal = c( "as", "cd", "co", "cr", "cu",
+                  "fe", "mn", "mo", "ni", "pb", 
+                  "sb", "se",  "sn", "zn")
+
+
+mdc = within(mdc, {
+  as = ifelse(study.split2==1, RTI_Toenail_as_Adj, DC_Baseline_Toenail_As_Adj)
+  cd = ifelse(study.split2==1, RTI_Toenail_cd_Adj, DC_Baseline_Toenail_Cd_Adj)
+  co = ifelse(study.split2==1, RTI_Toenail_co_Adj, DC_Baseline_Toenail_Co_Adj)
+  cr = ifelse(study.split2==1, RTI_Toenail_cr_Adj, DC_Baseline_Toenail_Cr_Adj)
+  cu = ifelse(study.split2==1, RTI_Toenail_cu_Adj, DC_Baseline_Toenail_Cu_Adj)
+  fe = ifelse(study.split2==1, RTI_Toenail_fe_Adj, DC_Baseline_Toenail_Fe_Adj)
+  mn = ifelse(study.split2==1, RTI_Toenail_mn_Adj, DC_Baseline_Toenail_Mn_Adj)
+  mo = ifelse(study.split2==1, RTI_Toenail_mo_Adj, DC_Baseline_Toenail_Mo_Adj)
+  ni = ifelse(study.split2==1, RTI_Toenail_ni_Adj, DC_Baseline_Toenail_Ni_Adj)
+  pb = ifelse(study.split2==1, RTI_Toenail_pb_Adj, DC_Baseline_Toenail_Pb_Adj)
+  sb = ifelse(study.split2==1, RTI_Toenail_sb_Adj, DC_Baseline_Toenail_Sb_Adj)
+  se = ifelse(study.split2==1, RTI_Toenail_se_Adj, DC_Baseline_Toenail_Se_Adj)
+  sn = ifelse(study.split2==1, RTI_Toenail_sn_Adj, DC_Baseline_Toenail_Sn_Adj)
+  zn = ifelse(study.split2==1, RTI_Toenail_zn_Adj, DC_Baseline_Toenail_Zn_Adj)
+  al = ifelse(study.split2==1, RTI_Toenail_al_Adj, NA)
+  va = ifelse(study.split2==1, NA, DC_Baseline_Toenail_V_Adj) # something weird going on with Vanadium. some very high values
+  hg = ifelse(study.split2==1, NA, DC_Baseline_Toenail_Hg_Adj)
+  
+  # for the 94 people with overlap between two samples, use Dartmouth date
+  month = ifelse(study2==1, DR224_DC_Baseline_ToenailColl_Mo,
+                 ifelse(study.split2==1, DR224_RTI_Toenail_CollMo_Big, DR224_DC_Baseline_ToenailColl_Mo))
+  
+  day = ifelse(study2==1, dart.doy,
+               ifelse(study.split2==1, rti.doy, dart.doy))
+})
+
+summary(mdc$al)
+summary(mdc$se)
+summary(mdc$va)
+hist(mdc$va)
+
+summary(mdc[mdc$study.split2==0,]$fe)
+summary(mdc$day)
+summary(mdc$month)
+
+table(is.na(mdc$DR224_DC_Baseline_ToenailColl_Yr))
+
+head(mdc[c("dartmouth.study", "rti.study", "study")])
+table(mdc[c("dartmouth.study", "rti.study", "study")])
+
+names(mdc)
+
+# what is left after you omit people with missing day?
+head(mdc[which(mdc$study.split2==1 & mdc$dartmouth.study==1), 
+         c('DR224_DC_Baseline_ToenailColl_Mo', 
+           'DR224_RTI_Toenail_CollMo_Big', 
+           'RTI_Toenail_as_Adj', 
+           'DC_Baseline_Toenail_As_Adj') ])
+
+test.dat = mdc[which(mdc$study2==1), ] # sample with overlap between dartmouth and rti
+summary(test.dat$DR224_RTI_Toenail_CollMo_Big) # no people with overlap have date of measure for rti. Assume it was Dartmouth date for both samples.
+summary(test.dat$DR224_DC_Baseline_ToenailColl_Mo)
+
+# Look at distribution of sample that is left after excluding missing day.
+with(mdc[!is.na(mdc$day),], table( dartmouth.study, rti.study, study.split2))
+with(mdc[!is.na(mdc$day),], table( study.split2)) # how many left per sample
+with(mdc[is.na(mdc$day),], table( study.split2)) # how many missing per sample
+
+```
+
+```{r}
+# for simplicity, designate study.split as study.split2 with random allocation of 94 overlap to different samples
+mdc$study.split = mdc$study.split2
+
+```
+
+
+```{r}
+
+# median and IQR for metals by sample
+
+metals.list =  c( "as", "cd", "co", "cr", "cu",
+                  "fe", "mn", "mo", "ni", "pb", 
+                  "sb", "se", "sn", "zn", "al", 
+                  "hg", "va")
+
+metals.list.title = c( "Arsenic (As)", 
+                       "Cadmium (Cd)", 
+                       "Cobalt (Co)", 
+                       "Chromium (Cr)",
+                       "Copper (Cu)",
+                       "Iron (Fe)", 
+                       "Manganese (Mn)",
+                       "Molybdenum (Mo)", 
+                       "Nickel (Ni)",
+                       "Lead (Pb)", 
+                       "Antimony (Sb)",
+                       "Selenium (Se)",
+                       "Tin (Sn)",
+                       "Zinc (Zn)",
+                       "Aluminum (Al)",
+                       "Mercury (Hg)",
+                       "Vanadium (V)")
+
+table(mdc$study.split2)
+
+levels(factor(mdc$study.split))
+mdc$study.split.f = factor(mdc$study.split, 
+                           labels = c("Replication", "Primary"))
+
+# source: https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html#continuous2
+mdc.daynomiss = mdc[which(!(is.na(mdc$day))),]
+mdc.daynomiss2 = mdc.daynomiss[c("study.split.f", metals.list)]
+names(mdc.daynomiss2) = c("study", metals.list.title)
+
+summary.metals = tbl_summary(mdc.daynomiss2, 
+                             by=study,
+                             type = all_continuous() ~ "continuous2",
+                             statistic = all_continuous() ~ c("{N_nonmiss}",
+                                                              "{median} ({p25}, {p75})", 
+                                                              "{min}, {max}"))
+summary.metals
+
+```
+
+```{r}
+# evaluate zeros for metals
+# first in primary sample
+
+primary = mdc.daynomiss2[mdc.daynomiss2$study=="Primary",]
+dim(primary)
+names(primary)
+summary(primary)
+
+# there are no zeros in primary sample
+
+replication = mdc.daynomiss2[mdc.daynomiss2$study=="Replication",]
+dim(replication)
+names(replication)
+summary(replication)
+
+# there are no zeros in replication sample
+
+```
+
+
+```{r, eval=F, include=F}
+# look at log summary of metals and how many are missing
+names(mdc.daynomiss2)
+
+# there are no zero values
+summary(sapply(mdc.daynomiss[mdc.daynomiss$study.split==1, c(metals.list)], function(x) (x<=0)))
+summary(sapply(mdc.daynomiss[mdc.daynomiss$study.split==0, c(metals.list)], function(x) (x<=0)))
+
+# source: https://stackoverflow.com/questions/61470345/log-transform-many-variables-in-r-with-loop
+mdc2 = mdc.daynomiss2 #mdc[,c("study", metals.list)]
+mdc2[paste0(names(mdc2)[2:18], "_ln")] <- lapply(mdc2[2:18], log)
+summary(mdc2)
+
+summary.metals2 = tbl_summary(mdc2, 
+                             by=study,
+                             type = all_continuous() ~ "continuous2",
+                             statistic = all_continuous() ~ c("{N_nonmiss}",
+                                                              "{median} ({p25}, {p75})", 
+                                                              "{min}, {max}"),
+                              missing_text = "(Missing)")
+summary.metals2
+
+```
+
+
+# Data analysis
+
+## Function to run analyses over list of metals
+
+```{r, eval=F, include=F}
+# test
+
+  outcome = "as";   # debug
+  # column with metal variable name
+  dat=mdc
+  colnum.metal = which(names(dat) %in% outcome)
+  dat$metal = as.numeric(dat[, colnum.metal])
+
+  #1d. just dartmouth regression model
+    # lm.d = lm(log(metal) ~  sin(2*3.141593*month/12) + cos(2*3.141593*month/12),
+    #        data = dat[which(dat$study.split==0),])
+      lm(metal ~  sin(2*3.141593*day/365) + cos(2*3.141593*day/365),
+           data = dat[which(dat$study.split==0),])
+
+```
+
+
+```{r}
+
+# Function to do:
+# 1) regression separated by study
+# 2) regression pooling by study
+# 3) get peak and timing of peak for figure with pooled
+# by each metal
+
+get.stats = function(outcome, outcome.title){
+  
+  # outcome = "as";   # debug
+  # column with metal variable name
+  dat=mdc
+  colnum.metal = which(names(dat) %in% outcome)
+  dat$metal = as.numeric(dat[, colnum.metal])
+  
+  ### 1) Cosinor models
+  
+  # Fitted seasonal model
+  
+  # Regression with one pair of sine cosine functions
+  
+  # 1a. Combined for studies
+  # lm1 = lm(log(metal) ~  sin(2*3.141593*month/12) + cos(2*3.141593**month/12),
+  #          data = dat)
+
+  lm1 = tryCatch(
+    {
+      lm(log(metal) ~  sin(2*3.141593*day/365) + cos(2*3.141593**day/365),
+           data = dat)
+    },
+    error = function(e){
+      NA
+    })
+  # summary(lm1)
+
+  # 1b. Interaction term for study
+  # lm1.int = lm(log(metal) ~ study.split*sin(2*3.141593*month/12) + study.split*cos(2*3.141593*month/12),
+  #          data = dat)
+  
+  lm1.int = tryCatch(
+    {
+      lm(log(metal) ~ study.split*sin(2*3.141593*day/365) + study.split*cos(2*3.141593*day/365),
+           data = dat)
+    },
+    error = function(e){
+      NA
+    })
+
+  # summary(lm1.int)
+  
+  # 1c. test difference between models to test if diffs across studies
+  
+  # lm1.int would have 1 intercept term, 1 main effect for study , 2 sin term, 2 cos
+  # total = 6 terms
+  
+  # lm1 would have 1 intercept,  1 sin, 1 cos 
+  # total = 3 terms
+  
+  anova(lm1, lm1.int) # this is the 3 df LRT test.
+  study.test = data.frame(anova(lm1, lm1.int))
+  study.test
+  
+  #1d. just dartmouth regression model
+    # lm.d = lm(log(metal) ~  sin(2*3.141593*month/12) + cos(2*3.141593*month/12),
+    #        data = dat[which(dat$study.split==0),])
+  
+  lm.d = tryCatch(
+    {
+      lm(log(metal) ~  sin(2*3.141593*day/365) + cos(2*3.141593*day/365),
+           data = dat[which(dat$study.split==0),])
+    },
+    error = function(e){
+      NA
+    })
+  
+  #  summary(lm.d)
+
+  lm.d.boot = tryCatch(
+      {
+        dart.dat = dat[which(dat$study.split==0),]
+        
+        func = function(data, idx) {
+          
+          c = coef(lm(log(metal) ~  sin(2*3.141593*day/365) + cos(2*3.141593*day/365),
+                  data = data[idx,]))
+          
+          alpha = c[2]
+          beta = c[3]
+          r <- sqrt(alpha^2 + beta^2)
+          phi <- atan2(beta, alpha)
+
+          #  time.at.peak.r = (asin(1)-phi)*12/(2*3.14)
+  
+          time.at.peak.r = (asin(1)-phi)*365/(2*3.14)
+          time.at.peak.r = ifelse(time.at.peak.r<0, 365-abs(time.at.peak.r), 
+                                  time.at.peak.r)
+
+          c(r, time.at.peak.r)
+        }
+        
+        # bootstrap the regression coefficients and resulting peak/time at peak estimates based on regression coefficients
+        B = boot(dart.dat, func, R=10)
+        
+        # get 95% confidence interval for r from bootstrapped coefficients
+        ci.calc.r = boot.ci(B, index=1, type="perc")
+        
+        # get 95% confidence interval for time at peak from bootstrapped coefficients
+        ci.calc.t = boot.ci(B, index=2, type="perc")
+
+        # return boostrapped estimate of r, 95% ci, time at peak, and its 95% ci
+          c(mean(B$t[,1]), ci.calc.r$percent[4], ci.calc.r$percent[5], 
+            mean(B$t[,2]),  ci.calc.t$percent[4], ci.calc.t$percent[5])
+       # ci.calc$percent[c(4,5)]
+          
+      },
+          error = function(e){
+      NA
+    })
+
+    
+    #1e. just rti regression model
+    # lm.r = lm(log(metal) ~  sin(2*3.141593*month/12) + cos(2*3.141593*month/12),
+    #        data = dat[which(dat$study.split==1),])
+  
+    lm.r = tryCatch(
+      {
+      lm(log(metal) ~  sin(2*3.141593*day/365) + cos(2*3.141593*day/365),
+           data = dat[which(dat$study.split==1),])
+      },
+          error = function(e){
+      NA
+    })
+    
+    
+    lm.r.boot = tryCatch(
+      {
+        rti.dat = dat[which(dat$study.split==1),]
+        
+        func = function(data, idx) {
+          
+          c = coef(lm(log(metal) ~  sin(2*3.141593*day/365) + cos(2*3.141593*day/365),
+                  data = data[idx,]))
+          
+          alpha = c[2]
+          beta = c[3]
+          r <- sqrt(alpha^2 + beta^2)
+          phi <- atan2(beta, alpha)
+
+          #  time.at.peak.r = (asin(1)-phi)*12/(2*3.14)
+  
+          time.at.peak.r = (asin(1)-phi)*365/(2*3.14)
+          time.at.peak.r = ifelse(time.at.peak.r<0, 365-abs(time.at.peak.r), 
+                                  time.at.peak.r)
+
+          c(r, time.at.peak.r)
+        }
+        
+        # bootstrap the regression coefficients and resulting peak/time at peak estimates based on regression coefficients
+        B = boot(rti.dat, func, R=10)
+        
+        # get 95% confidence interval for r from bootstrapped coefficients
+        ci.calc.r = boot.ci(B, index=1, type="perc")
+        
+        # get 95% confidence interval for time at peak from bootstrapped coefficients
+        ci.calc.t = boot.ci(B, index=2, type="perc")
+
+        # return boostrapped estimate of r, 95% ci, time at peak, and its 95% ci
+        c(mean(B$t[,1]), ci.calc.r$percent[4], ci.calc.r$percent[5], 
+            mean(B$t[,2]),  ci.calc.t$percent[4], ci.calc.t$percent[5])
+       # ci.calc$percent[c(4,5)]
+          
+      },
+          error = function(e){
+      NA
+    })
+
+    #summary(lm.r)
+
+  # Create figure with boxplots and superimposed regression line
+  # source: https://stackoverflow.com/questions/12193779/how-to-write-trycatch-in-r
+  # some metals are in one sample but not the other so need to return a null object for them
+
+    # RTI
+
+    bplot.dat.r = tryCatch(
+      {
+        # superimpose fitted values from cosinor model onto median plot
+        newdat1 = data.frame(day = seq(1,365,1)); head(newdat1)
+        newdat1$predict = predict(lm.r, newdata=newdat1); head(newdat1)
+        newdat1$outcome = outcome
+        
+        # prep observed data, there are multiple people observed on one day
+        orig.dat.r = dat[which(dat$study.split==1),c("day", "metal")]
+        #head(orig.dat.r)
+        
+        #summary(orig.dat.r$day) # some people with missing days, omit
+        orig.dat.r$day = ifelse(orig.dat.r$day==366, 365, orig.dat.r$day) # push day=366 to 365
+        orig.dat.r = orig.dat.r[which(complete.cases(orig.dat.r)),] # take out people with missing days
+        #head(orig.dat.r[order(orig.dat.r$day),])
+        
+        newdat1.m = merge(newdat1,
+                          orig.dat.r,
+                          by="day",
+                          all.y=T) # merge so all people are included (on their own row) and the same predicted value is present for everyone on a specific day
+        
+            # check
+#       dim(newdat1.m)        
+#       dim(newdat1)
+#       dim(dat[which(dat$study.split==1),])
+
+        }, 
+          error = function(e) {
+            NULL
+            })
+
+
+    # Dartmouth, predicted for month mid-point
+    bplot.dat.r.m =  tryCatch(
+      {
+        # superimpose fitted values from cosinor model onto median plot
+        newdat1 = data.frame(day = seq(15,12*30.5,30.5)); newdat1 # day of month mid-point
+        newdat1$predict = predict(lm.r, newdata=newdat1); head(newdat1)
+        newdat1$outcome = outcome
+        newdat1
+      },
+          error = function(e){
+        NULL
+    })
+    
+    
+    bplot.r = tryCatch(
+      {
+          ggplot(data = bplot.dat.r,
+                               aes(y=log(metal),
+                                   x=factor(ceiling(day/30.5)))) +
+          geom_violin() +
+          geom_boxplot(width=0.2) + 
+          geom_smooth(aes(y=predict, x=ceiling(day/30.5))) +
+          theme_bw(base_size=20) +
+          labs(x="Month", y="ln(metal, mcg/g)", title = outcome.title) 
+      },
+                error = function(e) {
+            NULL
+            })
+
+
+        # Dartmouth
+    bplot.dat.d =  tryCatch(
+      {
+        # superimpose fitted values from cosinor model onto median plot
+        newdat0 = data.frame(day = seq(0,365,1)); head(newdat0); dim(newdat0) # day of month mid-point
+        newdat0$predict = predict(lm.d, newdata=newdat0); head(newdat0)
+        newdat0$outcome = outcome
+        #names(dat)
+        
+        # prep observed data
+        orig.dat.d.m = dat[which(dat$study.split==0), c("day", "metal")]
+        
+        summary(orig.dat.d.m$day) # some people with missing months, omit
+#        orig.dat.d$day = ifelse(orig.dat.d$day==366, 365, orig.dat.d$day) # push day=366 to 365
+        orig.dat.d.m = orig.dat.d.m[which(complete.cases(orig.dat.d.m)),] # take out people with missing days
+
+        newdat0.m = merge(newdat0,
+                          orig.dat.d.m,
+                          by="day",
+                          all.y=T)
+      },
+          error = function(e){
+        NULL
+    })
+
+
+    # Dartmouth, predicted for month mid-point
+    bplot.dat.d.m =  tryCatch(
+      {
+        # superimpose fitted values from cosinor model onto median plot
+        newdat0 = data.frame(day = seq(15,12*30.5,30.5)); head(newdat0); dim(newdat0) # day of month mid-point
+        newdat0$predict = predict(lm.d, newdata=newdat0); head(newdat0)
+        newdat0$outcome = outcome
+        newdat0
+
+      },
+          error = function(e){
+        NULL
+    })
+    
+    
+    
+    bplot.d = tryCatch(
+      {
+          ggplot(data = bplot.dat.d,
+                               aes(y=log(metal),
+                                   x=factor(ceiling(day/30.5)))) +
+          geom_violin() +
+          geom_boxplot(width=0.2) + 
+          geom_smooth(aes(y=predict, x=ceiling(day/30.5))) +
+          theme_bw(base_size=20) +
+          labs(x="Month", y="ln(metal, mcg/g)", title=outcome.title)
+      },
+                error = function(e) {
+            NULL
+            })
+
+  # save all objects to list
+  
+  return(list(lm1, lm1.int, study.test,    # 1-3
+              lm.d, lm.r,                  # 4-5
+              bplot.dat.d, bplot.dat.r,    # 6-7
+              bplot.d, bplot.r,            # 8-9  
+              lm.d.boot, lm.r.boot,       # 10-11
+              bplot.dat.d.m, bplot.dat.r.m)) # 12-13       
+  
+}
+
+```
+
+## run the function
+
+```{r}
+
+# Loop function to get all objects across all metals
+
+metals.list =  c( "as", "cd", "co", "cr", "cu",
+                  "fe", "mn", "mo", "ni", "pb", "sb",
+                  "se", "sn", "zn", "al", "hg", "va")
+
+metals.list.title = c( "Arsenic (As)", 
+                       "Cadmium (Cd)", 
+                       "Cobalt (Co)", 
+                       "Chromium (Cr)",
+                       "Copper (Cu)",
+                       "Iron (Fe)", 
+                       "Manganese (Mn)",
+                       "Molybdenum (Mo)", 
+                       "Nickel (Ni)",
+                       "Lead (Pb)", 
+                       "Antimony (Sb)",
+                       "Selenium (Se)",
+                       "Tin (Sn)",
+                       "Zinc (Zn)",
+                       "Aluminum (Al)",
+                       "Mercury (Hg)",
+                       "Vanadium (V)")
+
+# two arguments for get.stats function: outcome, outcome.title
+
+# Run function over all metals
+run.models = mapply(get.stats, 
+                    outcome = metals.list,
+                    outcome.title=metals.list.title,
+                    USE.NAMES = T,
+                    SIMPLIFY=F)
+
+
+# check
+
+#rti.bplots2 = fun1(run.models, 9)
+#rti.bplots2[[4]]
+
+
+```
+
+## Extract information from lists generated by function
+
+```{r}
+# function to extract out parts of list from function run over metals
+
+# source: https://stackoverflow.com/questions/43014782/how-to-get-the-nth-element-of-each-item-of-a-list-which-is-itself-a-vector-of-u
+
+fun1 <- function(lst, n){
+         sapply(lst, `[`, n)
+}
+
+```
+
+### Tests of interaction term with sampling lab indicator
+
+```{r, eval=F, include=F}
+# extract test of pooled models from list, 3rd item from each list (based on return part of function above)
+
+tests = fun1(run.models, 3); tests
+fun1(run.models,10)
+
+```
+
+### RTI 
+
+#### Sample coefficients
+
+```{r}
+# extract out the rti model coefs, 5th item in the list
+
+rti.models = fun1(run.models, 5)
+
+# remove missing items from list
+rti.models.coef = lapply(rti.models[!is.na(rti.models)], coef) # get coefficients from models
+rti.models.dat = data.frame(rti.models.coef %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+
+metals.list.rti = names(rti.models[!is.na(rti.models)]); metals.list.rti
+rownames(rti.models.dat) = as.character(metals.list.rti)
+rti.models.dat
+
+colnames(rti.models.dat) = c("Intercept", "alpha", "beta")
+
+```
+
+#### Amplitude and timing of cosinor model
+
+Source: https://stats.stackexchange.com/questions/77543/how-do-i-get-the-amplitude-and-phase-for-sine-wave-from-lm-summary
+
+Model: $$ln(metal) = b0- \alpha * sin(2*3.14*day/365)  - \beta * cos(2*3.14*day/365)$$
+
+<!-- Model: $$ln(metal) = b0- \alpha * sin(2*3.14*month/12)  - \beta * cos(2*3.14*month/12)$$ -->
+
+$r = sqrt(\alpha^2 + \beta^2)$
+$\phi <- arctan(\beta, \alpha)$
+
+atan2 function in R returns the arc tangent between x axis and a vector from origin to (x, y)
+
+<!-- $time.at.peak = (arcsin(1)-\phi)*12/(2*3.14)$ -->
+$time.at.peak = (arcsin(1)-\phi)*365/(2*3.14)$
+
+
+```{r}
+
+# for rti models above, get the amplitude and time at peak
+rti.models.dat = within(rti.models.dat, {
+  r <- sqrt(alpha^2 + beta^2)
+  phi <- atan2(beta, alpha)
+#  time.at.peak.r = (asin(1)-phi)*12/(2*3.14)
+  time.at.peak.r = (asin(1)-phi)*365/(2*3.14)
+  time.at.peak.r = ifelse(time.at.peak.r<0, 365-abs(time.at.peak.r), 
+                          time.at.peak.r)
+})
+
+rti.models.dat
+rti.models.dat$metal = row.names(rti.models.dat)
+
+newdat.circ = data.frame(time.at.peak.r = seq(0,12,1),
+                         r = 0)
+
+extra = rbind.fill(rti.models.dat, newdat.circ)
+extra
+
+
+```
+
+
+```{r}
+# get bootstrapped peak and time at peak
+
+# extract out the bootstrapped r/time at r from rti model coefs, 11th item in the list
+
+rti.models.boot = fun1(run.models, 11)
+rti.models.boot = rti.models.boot[!is.na(rti.models.boot)]
+
+rti.models.dat.boot = data.frame(rti.models.boot %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+rti.models.dat.boot = t(rti.models.dat.boot)
+
+#rownames(rti.models.dat.boot) = as.character(metals.list.dart)
+
+colnames(rti.models.dat.boot) = c("r", "r, lci", "r, uci", "time.peak", "time.peak, lci", "time.peak, uci")
+rti.models.dat.boot
+
+rti.models.dat.boot = as.data.frame(rti.models.dat.boot)
+rti.models.dat.boot
+
+upnames.rti = str_to_title(metals.list.rti); upnames.rti
+rownames(rti.models.dat.boot) = upnames.rti
+rti.models.dat.boot$metal = rownames(rti.models.dat.boot)
+rti.models.dat.boot
+
+```
+
+
+#### Circular histogram
+
+```{r, fig.width=10, fig.height=10}
+
+# another version of circular histogram
+# source: https://stackoverflow.com/questions/43033628/circular-histogram-in-ggplot2-with-even-spacing-of-bars-and-no-extra-lines
+
+head(floor(rti.models.dat$time.at.peak.r))
+tail(rti.models.dat)
+rti.models.dat$floor.time = floor(rti.models.dat$time.at.peak.r)
+
+upnames.rti = str_to_title(metals.list.rti); upnames.rti
+rownames(rti.models.dat) = upnames.rti
+rti.models.dat$metal = rownames(rti.models.dat)
+
+newdat = rti.models.dat[order(-rti.models.dat$r), ]
+head(newdat)
+newdat[,c("metal", "time.at.peak.r", "r")]
+
+newdat
+
+circle.plot <- ggplot(newdat, aes(x=floor(time.at.peak.r/30.5), 
+                           y=r, 
+#                           colour=fct_reorder(metal,r), 
+                           fill=fct_reorder(metal, r))) +
+    coord_polar(theta = "x", start = 0) +
+    geom_bar(stat = "identity", width = .9) +
+    geom_hline(yintercept = seq(0, 2, by = 0.1), color = "white", size = 0.3) +
+  scale_x_continuous(limits = c(0,12),
+                     n.breaks=12) +
+#    scale_x_continuous(breaks = seq(0,12,1),
+#                       labels = seq(0,12,1)) +
+    labs(x = "Month", y = "Amplitude",
+         colour="Metal",
+         fill="Metal") +
+    guides(fill = guide_legend(reverse = TRUE)) +
+    theme_bw(base_size=20)
+
+circle.plot
+```
+
+```{r}
+
+ggsave(circle.plot, 
+       file="rti-circle.png",
+       #file="/Users/Shared/rti.circle.png", 
+       dpi=600, width=6, height=6)
+
+```
+
+
+```{r}
+# make rose plot with time in days, not months
+# https://stackoverflow.com/questions/39024758/how-to-use-r-package-circular-to-make-rose-plot-of-histogram-data-on-360
+
+newdat$metal = ifelse(newdat$metal=="Va", "V", newdat$metal)
+
+rose.plot2 <- ggplot(newdat, 
+                     aes(x=floor(time.at.peak.r), 
+                         y=r,
+                         color=fct_reorder(metal, -r))) +
+  coord_polar(theta = "x",  start = 0) +
+  geom_point(aes(x=floor(time.at.peak.r),
+                  y=r),
+              size=3) +
+  geom_bar(aes(y=r, fill=fct_reorder(metal, -r)),
+           stat = "identity",
+           width=0.5) + 
+  scale_x_continuous(limits = c(0,360),
+                     n.breaks = 12,
+                     labels = seq(0, 12 , 1)) +
+    labs(x = "Month", y = "Amplitude",
+         colour="Metal",
+         fill="Metal") +
+    geom_hline(yintercept = seq(0, 0.35, by = 0.05), color = "white", size = 0.3) +  
+    guides(fill = guide_legend(reverse = TRUE),
+           colour = "none") +
+    theme_bw(base_size=20)
+
+rose.plot2
+
+ggsave(rose.plot2,
+       file="rti-rose.png",
+       #file="/Users/Shared/dart.circle.png", 
+       dpi=600, width=6, height=6)
+
+```
+
+#### Boxplots with superimposed regression line
+
+```{r}
+
+# extract out data for rti boxplots, 7th item in list
+
+rti.bplots = fun1(run.models, 7)
+head(rti.bplots[[2]])
+names(rti.bplots)
+
+#rti.blots2 = lapply(rti.bplots, function(x) x$outcome.check = names(x))
+
+# stack lists into data frame
+rti.bplots2 = rti.bplots[!(is.na(rti.bplots))]
+lapply(rti.bplots, function(x) table(x$outcome, useNA="always"))
+
+rti.bplots.dat = data.frame(rti.bplots2 %>% bind_rows()) # unlist models to get consolidated data frame of
+head(rti.bplots.dat)
+table(rti.bplots.dat$outcome, useNA="always")
+
+# there are some missing outcomes -- assuming the metals not measured in sample?
+# head(rti.bplots.dat[which(is.na(rti.bplots.dat$outcome)),])
+
+bplot.r = ggplot(data = rti.bplots.dat,
+                       aes(y=log(metal),
+                           x=factor(ceiling(day/30.5)))) +
+  facet_wrap(outcome ~ ., scales = "free") +
+  geom_violin() +
+  geom_boxplot(width=0.2) + 
+  geom_line(aes(y=predict, x=ceiling(day/30.5))) +
+  theme_bw(base_size=20) +
+  labs(x="Month", y="ln(metal, mcg/g)")
+  
+bplot.r
+
+head(rti.bplots.dat)
+
+```
+
+```{r}
+# make a circular plot based on predicted values over time.
+
+# extract out data for rti boxplots, predicted for mid-point of month, 13th item in list
+
+rti.bplots.m = fun1(run.models, 13)
+head(rti.bplots.m[[2]])
+
+#rti.blots2 = lapply(rti.bplots, function(x) x$outcome.check = names(x))
+
+# stack lists into data frame
+rti.bplots.m.2 = rti.bplots.m[!(is.na(rti.bplots.m))]
+
+rti.bplots.dat.m = data.frame(rti.bplots.m.2 %>% bind_rows()) # unlist models to get consolidated data frame of
+head(rti.bplots.dat.m)
+table(rti.bplots.dat.m$outcome, useNA="always")
+
+# do polar plot based on month
+summary(rti.bplots.dat.m$day/30.5)
+
+table(rti.bplots.dat.m$outcome)
+head(rti.bplots.dat.m[rti.bplots.dat.m$outcome=="al",],10) # each row corresponds to one individual and there is only one predicted value per day so there will be individual-specific metal values observed and only one predicted value shared by all for a day
+
+dim(rti.bplots.dat.m)
+rti.bplots.dat.m$month = ceiling(rti.bplots.dat.m$day/30.5)
+
+sub.dat = rti.bplots.dat.m[rti.bplots.dat.m$outcome=="al",]
+dim(sub.dat)
+head(sub.dat)
+```
+
+```{r}
+
+test = rti.bplots.dat.m[rti.bplots.dat.m$month==1,]; test
+
+# polar plot for predicted value at month
+bplot.r2 = ggplot(data = rti.bplots.dat.m[,
+  c("predict", "month", "outcome")],
+                  aes(y=predict,
+                      x=month, 
+                      group=outcome,
+                      colour=outcome)) +
+  geom_line(lwd=1) +
+  theme_minimal() + 
+  scale_fill_brewer() +
+  coord_polar() +
+  scale_x_continuous(limits = c(0,12),
+                     n.breaks=12) +
+  ylim(min(rti.bplots.dat.m$predict), max(rti.bplots.dat.m$predict))
+
+bplot.r2
+
+
+# add dummy to cover 0
+# https://r-graphics.org/recipe-axes-polar
+rti.bplots.dat.m_dummy = rti.bplots.dat.m[rti.bplots.dat.m$month==12,]
+rti.bplots.dat.m_dummy$month=0
+rti.bplots.dat.m.new = rbind(rti.bplots.dat.m_dummy,
+                             rti.bplots.dat.m)
+
+bplot.r2 %+%
+  rti.bplots.dat.m.new[,c("predict", "month", "outcome")] + 
+  coord_polar() +
+  ylim(min(rti.bplots.dat.m$predict), max(rti.bplots.dat.m$predict))
+
+
+
+# do plot of predicted values by month, similar to the circular histogram with r at peak
+bplot.r3 = ggplot(data = rti.bplots.dat.m[,
+  c("predict", "month", "outcome")],
+                  aes(y=predict,
+                      x=month-0.5, 
+                      fill=fct_reorder(outcome, predict))) +
+  geom_bar(stat = "identity", width=0.9) +
+  theme_minimal() + 
+  coord_polar(theta="x", start=0) +
+  geom_bar(stat = "identity", width = .9) +
+  scale_x_continuous(limits = c(1,12),
+                     n.breaks=12) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_bw(base_size=20) +
+      labs(x = "Month", y = "Amplitude",
+         colour="Metal",
+         fill="Metal") 
+
+bplot.r3
+
+```
+
+```{r}
+# repeat plot but for predicted value by day
+
+head(rti.bplots.dat)
+rti.day = unique(rti.bplots.dat[,c("day", "predict", "outcome")])
+dim(rti.day)
+
+# polar plot for predicted value at day
+bplot.r4 = ggplot(data = rti.day[,c("predict", "day", "outcome")],
+                  aes(y=predict,
+                      x=day, 
+                      group=outcome,
+                      colour=outcome)) +
+  geom_line(lwd=1) +
+  theme_minimal() + 
+  scale_fill_brewer() +
+  coord_polar(start=0) +
+  scale_x_continuous(limits = c(0,365),
+                     n.breaks=12)# +
+#  ylim(min(rti.bplots.dat.m$predict), max(rti.bplots.dat.m$predict))
+
+bplot.r4
+
+
+```
+
+
+```{r}
+ggsave(bplot.r, file="rti-boxplots2.png", units="in", dpi=300, width=16, height=12)
+
+```
+
+
+```{r}
+# Different way of getting plots with ggarrange
+# extract out rti boxplots, 9th item in list
+
+rti.bplots2 = fun1(run.models, 9)
+rti.bplots2[[1]]
+
+# https://stackoverflow.com/questions/10706753/how-do-i-arrange-a-variable-list-of-plots-using-grid-arrange
+# only inlude boxplots for non-missing metals (plots are run for all metals and need to exclude missing objects or it will kick up an error)
+
+bplot.r2 = do.call(grid.arrange, c(rti.bplots2[!(is.na(fun1(run.models, 5)))],
+                        ncol=5))
+bplot.r2
+
+ggsave(bplot.r2, file="rti-boxplots.png", units="in", dpi=300, width=16, height=12)
+
+```
+
+### Dartmouth 
+
+#### model coefficients
+
+```{r}
+
+# extract out the dartmouth model coefs, 4th item in the list
+
+# remove missing items from list
+
+dart.models = fun1(run.models, 4)
+dart.models.coef = lapply(dart.models[!is.na(dart.models)], coef) # get coefficients from models
+dart.models.dat = data.frame(dart.models.coef %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+
+metals.list.dart = names(dart.models[!is.na(dart.models)]); metals.list.dart
+
+rownames(dart.models.dat) = as.character(metals.list.dart)
+dart.models.dat
+
+colnames(dart.models.dat) = c("Intercept", "alpha", "beta")
+
+```
+
+#### Time at peak and amplitude
+
+```{r}
+
+# for models above, get the amplitude and time at peak
+dart.models.dat = within(dart.models.dat, {
+  r <- sqrt(alpha^2 + beta^2)
+  phi <- atan2(beta, alpha)
+  #  time.at.peak.r = (asin(1)-phi)*12/(2*3.14)
+  time.at.peak = (asin(1)-phi)*365/(2*3.14)
+  time.at.peak = ifelse(time.at.peak<0, 365-abs(time.at.peak), 
+                          time.at.peak)
+})
+
+dart.models.dat
+dart.models.dat$metal = row.names(dart.models.dat)
+
+newdat.circ2 = data.frame(time.at.peak = seq(0,12,1),
+                         r = 0)
+
+extra2 = rbind.fill(dart.models.dat, newdat.circ2)
+extra2
+
+```
+
+
+
+```{r}
+# get bootstrapped peak and time at peak
+
+# extract out the bootstrapped r/time at r from dartmouth model coefs, 10th item in the list
+
+dart.models.boot = fun1(run.models, 10)
+dart.models.boot = dart.models.boot[!is.na(dart.models.boot)]
+
+dart.models.dat.boot = data.frame(dart.models.boot %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+dart.models.dat.boot = t(dart.models.dat.boot)
+
+#rownames(dart.models.dat.boot) = as.character(metals.list.dart)
+
+colnames(dart.models.dat.boot) = c("r", "r, lci", "r, uci", "time.peak", "time.peak, lci", "time.peak, uci")
+dart.models.dat.boot
+
+dart.models.dat.boot = as.data.frame(dart.models.dat.boot)
+dart.models.dat.boot
+
+upnames.dart = str_to_title(metals.list.dart); upnames.dart
+rownames(dart.models.dat.boot) = upnames.dart
+dart.models.dat.boot$metal = rownames(dart.models.dat.boot)
+dart.models.dat.boot
+
+```
+
+
+#### Circular histogram
+
+```{r}
+# another version of circular histogram
+# source: https://stackoverflow.com/questions/43033628/circular-histogram-in-ggplot2-with-even-spacing-of-bars-and-no-extra-lines
+
+head(floor(dart.models.dat$time.at.peak))
+tail(dart.models.dat)
+dart.models.dat$floor.time = floor(dart.models.dat$time.at.peak)
+
+upnames.dart = str_to_title(names(dart.models[!is.na(dart.models)])); upnames.dart
+rownames(dart.models.dat) = upnames.dart
+dart.models.dat$metal = rownames(dart.models.dat)
+
+newdat2 = dart.models.dat[order(-dart.models.dat$r), ]
+head(newdat2)
+newdat2[,c("metal", "time.at.peak", "r")]
+
+circle.plot2 <- ggplot(newdat2, aes(x=floor(time.at.peak/30.5), 
+                           y=r, 
+                           #colour=fct_reorder(metal,r), 
+                           fill=fct_reorder(metal, r))) +
+    coord_polar(theta = "x", start = 0) +
+    geom_bar(stat = "identity", width = .9) +
+    geom_hline(yintercept = seq(0, 2, by = 0.1), color = "white", size = 0.3) +
+  scale_x_continuous(limits = c(0,12),
+                     n.breaks=12) +
+#    scale_x_continuous(breaks = seq(0,12,1),
+#                       labels = seq(0,12,1)) +
+    labs(x = "Month", y = "Amplitude",
+         colour="Metal",
+         fill="Metal") +
+    guides(fill = guide_legend(reverse = TRUE)) +
+    theme_bw(base_size=20)
+
+circle.plot2
+
+ggsave(circle.plot2, 
+       file="dart-circle.png",
+       #file="/Users/Shared/dart.circle.png", 
+       dpi=600, width=6, height=6)
+
+```
+
+```{r}
+# make rose plot with time in days, not months
+# https://stackoverflow.com/questions/39024758/how-to-use-r-package-circular-to-make-rose-plot-of-histogram-data-on-360
+
+newdat2$metal = ifelse(newdat2$metal=="Va", "V", newdat2$metal)
+newdat2
+
+rose.plot1 <- ggplot(newdat2[c("r","floor.time", "metal")],#
+                     aes(x=floor.time, 
+                         y=r,
+                         color=fct_reorder(metal, -r),
+                         fill=fct_reorder(metal, -r))) +
+  coord_polar(theta = "x",  start = 0) +
+  geom_point(aes(x=floor.time,
+                  y=r,
+                 color=fct_reorder(metal, -r)),
+              size=3) +
+  geom_bar(data=newdat2[!(newdat2$metal=="Sn"),], # for some reason the bar for Sn isn't working, exclude
+           aes(x=floor.time,
+               y=r,
+               fill=fct_reorder(metal, -r)),
+           stat = "identity",
+           width=0.5) + 
+  scale_x_continuous(limits = c(0,360),
+                     n.breaks = 12,
+                     labels = seq(0, 12 , 1)) +
+    labs(x = "Month", y = "Amplitude",
+         colour="Metal",
+         fill="Metal") +
+    geom_hline(yintercept = seq(0, 0.35, by = 0.05), color = "white", size = 0.3) +  
+    guides(fill = guide_legend(reverse = TRUE),
+           colour = "none") +
+    theme_bw(base_size=20)
+
+rose.plot1 
+
+ggsave(rose.plot1,
+       file="dart-rose.png",
+       #file="/Users/Shared/dart.circle.png", 
+       dpi=600, width=6, height=6)
+
+```
+
+
+```{r}
+# the amplitude and timing for both samples
+
+newdat$sample = "Primary"
+newdat2$sample = "Secondary"
+head(newdat)
+head(newdat2)
+newdat = newdat %>%
+  rename(c('time.at.peak.r' = 'time.at.peak'))
+
+newdat.both = rbind.data.frame(newdat,
+                               newdat2)
+
+head(newdat.both)
+newdat.both = newdat.both %>% select(-time.at.peak)
+newdat.both
+
+newdat.both = newdat.both[order(newdat.both$sample, -newdat.both$r),]
+newdat.both
+
+kable(newdat.both[c("sample",
+                    "metal",
+                    "Intercept",
+                    "alpha",
+                    "beta",
+                    "floor.time",
+                    "r")],)
+
+```
+
+
+
+```{r}
+# the bootstrapped amplitude and timing for both samples
+
+dart.models.dat.boot$sample = "Secondary"
+rti.models.dat.boot$sample = "Primary"
+dart.models.dat.boot
+
+newdat.both.boot = rbind.data.frame(dart.models.dat.boot,
+                                    rti.models.dat.boot)
+  
+head(newdat.both.boot)
+
+newdat.both.boot = newdat.both.boot[order(newdat.both.boot$sample, -newdat.both.boot$r),]
+newdat.both.boot
+
+newdat.both.boot = within(newdat.both.boot, {
+  test = format(as.Date(time.peak, origin = "2018-01-01"), "(%m/%d)")
+})
+
+head(newdat.both.boot)
+
+newdat.both.boot = within(newdat.both.boot, {
+  r.ci = paste0(format(round(r,2), nsmall=2),
+                " (", 
+                format(round(`r, lci`,2), nsmall=2),
+                ", ", 
+                format(round(`r, uci`,2), nsmall=2),
+                ")")
+  
+  time.ci = paste0(test,
+                   "\n",
+                   format(round(time.peak,0), nsmall=0),
+                " (", 
+                format(round(`time.peak, lci`,0), nsmall=0),
+                ", ", 
+                format(round(`time.peak, uci`,0), nsmall=0),
+                ")")
+  
+})
+
+newdat.both.boot
+
+kable(newdat.both.boot[c("sample",
+                    "metal",
+                    "r.ci",
+                    "time.ci")],
+      row.names = F)
+
+```
+
+
+
+
+#### Boxplots with superimposed regression line
+
+```{r}
+
+# extract out data for rti boxplots, 6th item in list
+
+dart.bplots = fun1(run.models, 6)
+head(dart.bplots[[2]])
+names(dart.bplots)
+
+# stack lists into data frame
+dart.bplots2 = dart.bplots[!(is.na(dart.bplots))]
+lapply(dart.bplots, function(x) table(x$outcome, useNA="always"))
+
+dart.bplots.dat = data.frame(dart.bplots2 %>% bind_rows()) # unlist models to get consolidated data frame of
+head(dart.bplots.dat)
+table(dart.bplots.dat$outcome, useNA="always")
+
+# there are some missing outcomes -- assuming the metals not measured in sample?
+# head(dart.bplots.dat[which(is.na(dart.bplots.dat$outcome)),])
+
+
+bplot.d = ggplot(data = dart.bplots.dat,
+                       aes(y=log(metal),
+                           x=factor(ceiling(day/30.5)))) +
+  facet_wrap(outcome ~ ., scales = "free") +
+  geom_violin() +
+  geom_boxplot(width=0.2) + 
+  geom_line(aes(y=predict, x=ceiling(day/30.5))) +
+  theme_bw(base_size=20) +
+  labs(x="Month", y="ln(metal, mcg/g)")
+  
+bplot.d
+
+ggsave(bplot.d, file="dart-boxplots2.png", units="in", dpi=300, width=16, height=12)
+
+```
+
+
+```{r}
+# Different way of getting plots with ggarrange
+# extract out dartmouth boxplots, 8th item in list
+
+dart.bplots2 = fun1(run.models, 8)
+dart.bplots2[[1]]
+
+# https://stackoverflow.com/questions/10706753/how-do-i-arrange-a-variable-list-of-plots-using-grid-arrange
+# only inlude boxplots for non-missing metals (plots are run for all metals and need to exclude missing objects or it will kick up an error)
+
+# this information can be found in the list of regression results for dartmouth metals in 4th item of list
+
+bplot.d2 = do.call(grid.arrange, c(dart.bplots2[!(is.na(fun1(run.models, 4)))],
+                        ncol=5))
+bplot.d2
+
+ggsave(bplot.d2, file="dart-boxplots.png", units="in", dpi=300, width=16, height=12)
+
+```
+
+
+
+```{r}
+
+# circular plot for predicted value by day
+
+head(dart.bplots.dat)
+dart.day = unique(dart.bplots.dat[,c("day", "predict", "outcome")])
+dim(dart.day)
+
+# polar plot for predicted value at day
+bplot.dart2 = ggplot(data = dart.day[,c("predict", "day", "outcome")],
+                  aes(y=predict,
+                      x=day, 
+                      group=outcome,
+                      colour=outcome)) +
+  geom_line(lwd=1) +
+  theme_minimal() + 
+  scale_fill_brewer() +
+  coord_polar(start=0) +
+  scale_x_continuous(limits = c(0,365),
+                     breaks=seq(0, 365, 30))# +
+
+bplot.dart2
+
+
+```
+
+
+
+### RTI cosinor models
+
+#### boxplots
+
+```{r, fig.height=12, fig.width=4}
+
+### Boxplots by month for RTI data (RTI has a lot of outliers)
+# to do: look at RTI data and outliers.
+
+# prep data
+
+# change from wide to long data frame to plot using tidyr
+# source: https://stackoverflow.com/questions/61223324/how-to-convert-wide-data-into-long-type-in-r
+
+
+long.dat <- mdc %>% 
+  subset(study.split==1) %>%
+  select(all_of(overlap.metal), month) %>%
+  pivot_longer(-month)
+dim(long.dat)
+
+long.dat = data.frame(long.dat[complete.cases(long.dat),])
+class(long.dat)
+dim(long.dat)
+
+summary(long.dat)
+head(long.dat)
+
+bplot = ggplot(long.dat,
+                aes(y=log(value),
+                     x=factor(month))) +
+  facet_grid(name~., scales="free") +  
+  geom_violin() + 
+  geom_boxplot(width=0.2) + theme_bw(base_size=20) +
+  labs(x="Month", y="ln(mcg/g)")
+
+bplot
+
+```
+
+```{r, eval=F}
+# figure of cosinor curve
+# test
+newdat = data.frame(month = seq(0,12,1)); newdat
+fe = rti.models[[1]]
+class(fe)
+fe.predict = predict(fe, newdat)
+head(fe.predict)
+fe.dat = data.frame(y=fe.predict, x= seq(0,12,1))
+fe.dat
+
+ggplot(aes(y=y, x=x), data=fe.dat) +
+   stat_smooth(method = "lm", formula = y ~ poly(x, 3), size = 1) +
+  theme_bw()+
+  ylab("Metals")
+```
+
+#### cosinor plots
+
+```{r}
+# cosinor plots
+
+newdat = data.frame(day = seq(0,365,1)); newdat
+rti.models.predict = lapply(rti.models[!is.na(rti.models)], function(x) predict(x, newdata=newdat)) 
+rti.models.predict[1]
+
+rti.models.predict.dat = data.frame(rti.models.predict %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+
+dim(rti.models.predict.dat)
+head(rti.models.predict.dat)
+colnames(rti.models.predict.dat) = seq(0,365,1)
+
+rti.models.predict.dat.t = data.frame(t(rti.models.predict.dat))
+head(rti.models.predict.dat.t)
+colnames(rti.models.predict.dat.t) = as.character(metals.list.rti)
+class(rti.models.predict.dat.t)
+
+rti.models.predict.dat.t$day = seq(0,365,1)
+head(rti.models.predict.dat.t)
+
+# change from wide to long data frame to plot using tidyr
+# source: https://stackoverflow.com/questions/61223324/how-to-convert-wide-data-into-long-type-in-r
+long <- rti.models.predict.dat.t %>% pivot_longer(-day)
+head(long)
+table(long$name) # check
+
+plot.rti = ggplot(aes(y=value, x=day),
+                   data=long) +
+  facet_grid(name~., scales="free") +
+   stat_smooth(method = "lm", formula = y ~ poly(x, 3), size = 1) +
+  theme_bw()+
+  ylab("Metals")
+
+
+plot.rti
+
+```
+
+### Dartmouth cosinor models
+
+#### cosinor plots
+
+```{r}
+# cosinor plots
+
+newdat = data.frame(day = seq(0,365,1)); newdat
+dart.models.predict = lapply(dart.models[!is.na(dart.models)], function(x) predict(x, newdata=newdat)) 
+dart.models.predict[1]
+
+dart.models.predict.dat = data.frame(dart.models.predict %>% bind_rows()) # unlist models to get consolidated data frame of coefficients
+
+dim(dart.models.predict.dat)
+head(dart.models.predict.dat)
+colnames(dart.models.predict.dat) = seq(0,365,1)
+
+dart.models.predict.dat.t = data.frame(t(dart.models.predict.dat))
+head(dart.models.predict.dat.t)
+colnames(dart.models.predict.dat.t) = as.character(metals.list.dart)
+class(dart.models.predict.dat.t)
+
+dart.models.predict.dat.t$day = seq(0,365,1)
+head(dart.models.predict.dat.t)
+
+# change from wide to long data frame to plot using tidyr
+# source: https://stackoverflow.com/questions/61223324/how-to-convert-wide-data-into-long-type-in-r
+long.dart <- dart.models.predict.dat.t %>% pivot_longer(-day)
+head(long.dart)
+table(long.dart$name) # check
+
+plot.dart = ggplot(aes(y=value, x=day),
+                   data=long.dart) +
+  facet_grid(name~., scales="free") +
+   stat_smooth(method = "lm", formula = y ~ poly(x, 3), size = 1) +
+  theme_bw()+
+  ylab("Metals")
+
+plot.dart
+
+```
+
+#### cosinor and boxplots, overlay Dartmouth estimates on RTI
+
+
+```{r, fig.height=6, fig.width=6}
+
+long.dat.rev = long.dat[log(long.dat$value)<5 & log(long.dat$value)>1,]
+head(long.dat.rev)
+
+bplot.i = ggplot(long.dat.rev[long.dat.rev$name=="fe",],
+                aes(y=log(value),
+                     x=factor(month))) +
+  geom_violin() + 
+  geom_boxplot(width=0.2) + theme_bw(base_size=20) +
+  labs(x="Month", y="ln(mcg/g)") 
+
+# add a horizontal line at intercept for rti cosinor model
+
+long$month = long$day/30
+summary(long)
+long.dart$month = long.dart$day/30
+
+# boxplot and predictions from linear model
+bplot.i +
+  stat_smooth(aes(y=value, x=month),
+            method = "lm", formula = y ~ poly(x, 3), size = 1,
+            data=long[long$name=="fe",],
+            colour="black", se=T) +
+  stat_smooth(aes(y=value, x=month),
+            method = "lm", formula = y ~ poly(x, 3), size = 1, 
+            data=long.dart[long.dart$name=="fe",],
+            colour="blue", se=F) +
+  geom_hline(yintercept = rti.models$fe[[1]][1], lty=2, lwd=1, 
+             colour="red") +
+  ylab("log(mcg/g)") +
+  ggtitle("Iron")
+
+```
+
+
+
+## Descriptive statistics table
+
+```{r}
+#check distribution of numeric/continuous variables
+
+metal.data.cleaned%>%
+  ggplot(aes(x = AgeExact_Baseline)) +
+  geom_histogram() +
+  labs(x = "Age", title = "Exact Age at Baseline (n = 50884, Sister Study 2022)")
+
+#data is normal, use mean
+
+metal.data.cleaned%>%
+  ggplot(aes(x = EX_BMI_final)) +
+  geom_histogram() +
+  labs(x = "BMI", title = "BMI (n = 50884, Sister Study)")
+
+#data is non-normal, use median
+```
+
+```{r}
+
+#Frequencies and percentages for participant characteristics
+
+descriptives <- metal.data.cleaned%>%
+  select(EX_BMI_final, AgeExact_Baseline, SE18, SE_RACE_ETH, SM_SmokeStatusN)
+
+descriptives.data.table <- CreateTableOne(data = descriptives)
+print(x = descriptives.data.table, varLabels = TRUE, nonnormal = c('AgeExact_Baseline',
+                                                                   'EX_BMI_final'))
+
+
+```
+
+
+```{r, eval=T}
+# descriptive statistics for total sample using  gtsummary package: https://www.danieldsjoberg.com/gtsummary/reference/tbl_summary.html
+
+names(descriptives)
+names(descriptives) = c("BMI", 
+                        "Age", 
+                        "Education", 
+                        "Race/Ethnicity", 
+                        "Smoking status")
+attributes(descriptives$BMI)$label = "BMI, kg/m2"
+attributes(descriptives$Age)$label = "Age (years)"
+
+# combine education
+levels(descriptives$Education)
+levels(descriptives$Education) = c("Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Some college but no degree",
+                                   "Associate or technical degree",
+                                   "Bachelor's Degree",
+                                   "Master's Degree or other graduate level",
+                                   "Master's Degree or other graduate level")
+
+
+# source: https://www.pipinghotdata.com/posts/2021-07-14-polished-summary-tables-in-r-with-gtsummary/
+t1 = tbl_summary(descriptives)
+t1
+
+```
+
+```{r}
+# Descriptive statistics for subcohort only, divided by study type.
+descriptives2 <- mdc %>%
+  select(EX_BMI_final, AgeExact_Baseline, SE18, SE_RACE_ETH, SM_SmokeStatusN, study.split.f, month) %>%
+  filter(!is.na(month))
+
+# data handling for table
+names(descriptives2)
+names(descriptives2) = c("BMI", 
+                        "Age", 
+                        "Education", 
+                        "Race/Ethnicity", 
+                        "Smoking status",
+                        "study",
+                        "Month of collection")
+names(descriptives2)
+
+attributes(descriptives2$BMI)$label = "BMI, kg/m2"
+attributes(descriptives2$Age)$label = "Age (years)"
+
+# combine education
+levels(descriptives2$Education)
+levels(descriptives2$Education) = c("Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Completed high school, GED, or less",
+                                   "Some college but no degree",
+                                   "Associate or technical degree",
+                                   "Bachelor's Degree",
+                                   "Master's Degree or other graduate level",
+                                   "Master's Degree or other graduate level")
+
+t1.2 = tbl_summary(descriptives2, 
+                   missing="no",
+                   by=study)
+
+t1.2.ov = add_overall(
+  t1.2,
+  last = FALSE,
+  col_label = NULL,
+  statistic = NULL,
+  digits = NULL)
+
+t1.2.ov
+
+```
+
+
+```{r, eval=F}
+# Note: this isn't working for me
+#table for manuscript
+
+descr.cat <- descriptives%>%
+  select(SE18, SE_RACE_ETH, SM_SmokeStatusN)
+
+#table with percents
+
+table.data <- data.frame()
+for (i in 1:(ncol(descr.cat))) {
+  table.each <- data.frame(round(x = prop.table(x = table(descr.cat[,i]))*100,1))
+  c.name <- colnames(descr.cat[i])
+  label.names <- data.frame(Variable = rep(c.name, times = nrow(table.each)))
+  table.each.labelled <- cbind(label.names, table.each)
+  table.data <- rbind(table.data, table.each.labelled)
+}
+
+# add column names 
+table.data <- table.data
+colnames(table.data) <- c("Variable", "Variable Category", "Percent")
+
+table.data
+
+```
+
+
+
+# Regression Tables/Figures
+
+```{r}
+
+# make table for regression coefficients
+
+# RTI
+# =======================================================
+
+# list of all rti models from function above
+names(rti.models) = metals.list.rti
+rti.models[[1]] # first model 
+
+# vector with full names corresponding to order of metals.list
+metals.list
+metal.list.full = c("Arsenic",
+                    "Cadmium",
+                    "Cobalt",
+                    "Chromium",
+                    "Copper",
+                    "Iron",
+                    "Manganese",
+                    "Molybdenum",
+                    "Nickel",
+                    "Lead",
+                    "Antimony",
+                    "Selenium",
+                    "Zinc")
+
+
+stargazer(rti.models[!is.na(rti.models)], type="html",
+          column.labels = str_to_title(metals.list.rti),
+          dep.var.caption = "",
+          model.numbers = F,
+          dep.var.labels.include = F,
+          align=T,
+          ci=T,
+          ci.level=0.95,
+          digits=2,
+          covariate.labels = c("Sine(Month Time)", "Cosine(Month Time)"),
+          out="RTI-regression.html")
+
+
+# Dartmouth
+# =======================================================
+
+names(dart.models) = metals.list.dart
+dart.models[[1]] # first model 
+
+stargazer(dart.models[!is.na(dart.models)], type="html",
+          column.labels = str_to_title(metals.list.dart),
+          dep.var.caption = "",
+          model.numbers = F,
+          dep.var.labels.include = F,
+          align=T,
+          ci=T,
+          ci.level=0.95,
+          digits=2,
+          covariate.labels = c("Sine(Month Time)", "Cosine(Month Time)"),
+          out="Dartmouth-regression.html")
+
+
+```
+
+```{r, include=F, eval=F}
+# add number of missing
+
+stargazer(dart.models[!is.na(dart.models)], type="text",
+          column.labels = str_to_title(metals.list.dart),
+          dep.var.caption = "",
+          model.numbers = F,
+          dep.var.labels.include = F,
+          align=T,
+          ci=T,
+          ci.level=0.95,
+          digits=2,
+          covariate.labels = c("Sine(Month Time)", "Cosine(Month Time)"),
+          out="Dartmouth-regression.html")
+
+```
+
+
+```{r}
+# save data for tables-and-figures.Rmd
+
+save(rti.models, dart.models, descriptives2, metals.list.rti, metals.list.dart,
+     newdat.both,
+     summary.metals,
+     bplot.r, bplot.d, bplot.r2, bplot.d2,
+     mdc, # data
+     newdat.both.boot,
+     file="seasonal-output.RData")
+
+```
+

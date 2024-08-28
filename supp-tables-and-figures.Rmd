@@ -1,0 +1,191 @@
+---
+title: "Supplementary Tables and Figures"
+description: Summary of analyses
+editor_options:
+  chunk_output_type: console
+link-citations: yes
+linkcolor: blue
+citecolor: blue
+always_allow_html: yes
+urlcolor: blue
+geometry: margin=1cm
+---
+
+<!-- NOTE: all information for this file take from ~\National Institutes of Health\NIEHS-Von Holle BCBB Postdoctoral work - General\seasonal patterns\scripts\seasonal_variation_function_20221104.Rmd -->
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      eval = T, 
+                      fig.width=6,
+                      fig.height=6,
+                      fig.cap=T,
+                      message=F,
+                      float=F,
+                      fig.pos="H",
+                      results = 'markup', # hide all results
+                      warning = F)
+
+```
+
+
+```{r, include=F, eval=T}
+require(knitr)
+require(kableExtra)
+require(stargazer) 
+require(nlme)
+require(tidyr)
+require(ggplot2)
+require(gtsummary) # this table making package works better with haven objects
+require(stringr)
+require(flextable)
+
+```
+
+
+```{r, child = "seasonal_variation_function_20221104.Rmd", eval=F}
+```
+
+
+```{r, child = "section3.Rmd", eval=F}
+```
+
+
+```{r}
+
+# source: seasonal_variation_function_20221104.Rmd
+load(file="seasonal-output.RData") # rti.models, dart.models, descriptives2, metals.list.rti, metals.list.dart,   newdat.both, summary.metals, bplot.r, bplot.d, bplot.r2, bplot.d2,     mdc,  newdat.both.boot data
+
+# source: section3.Rmd (comparison of two samples)
+load(file="overlap.RData") # object: model.info 
+
+```
+
+<br><br><br>
+
+
+```{r}
+# note: these tables don't work in officedown
+# https://stackoverflow.com/questions/64007069/bookdown-and-rendering-kable-tables-to-a-word-document
+
+kable(model.info[c("metal",
+                   "corr1.estimate",
+                   "mean.diffs",
+                   "sd.diffs",
+                   "lci.diffs",
+                   "uci.diffs", 
+                   "test")],
+      caption="Table S1. Correlation and mean difference for paired metals in overlap between two samples (n=94)",
+      row.names = F,
+      booktabs=T,
+      digits=3,
+      escape=F,
+      col.names = c("Metal", "Spearman correlation", "Mean difference", "SD", "lower 95% ci", "upper 95% ci", "p-value, paired \nt-test")) %>%
+   column_spec(2:7, width = '2cm')
+
+
+```
+
+<br><br><br>
+```{r}
+summary.metals %>%
+  modify_caption("Table S2. Descriptive statistics by type of metal") %>%
+  as_flex_table()
+
+```
+
+<br><br><br>
+
+```{r, results="asis"}
+
+stargazer(rti.models[!is.na(rti.models)], 
+#          type="latex",
+          type="html",
+          column.labels = str_to_title(metals.list.rti),
+          dep.var.caption = "",
+          model.numbers = F,
+          dep.var.labels.include = F,
+          align=T,
+          ci=T,
+          ci.level=0.95,
+          digits=2,
+          covariate.labels = c("sine(time)", "cosine(time)"),
+          out="RTI-regression.html",
+          title = "Table S3. Primary sample regression model coefficients.")
+
+```
+
+<br><br><br>
+
+```{r, results="asis"}
+# source: https://www.jakeruss.com/cheatsheets/stargazer/#last-updated-june-16-2017
+
+# change va to V
+metals.list.dart[16] = "V"
+
+stargazer(dart.models[!is.na(dart.models)], type="html",
+          column.labels = str_to_title(metals.list.dart),
+          dep.var.caption = "",
+          model.numbers = F,
+          dep.var.labels.include = F,
+          align=T,
+          ci=T,
+          ci.level=0.95,
+          digits=2,
+          covariate.labels = c("sine(time)", "cosine(time)"),
+          out="Dartmouth-regression.html",
+          title = "Table S4. Replication sample regression model coefficients.")
+
+```
+
+<br><br><br>
+
+```{r, eval=F, include=F}
+
+kable(newdat.both[c("sample",
+                    "metal",
+                    "Intercept",
+                    "alpha",
+                    "beta",
+                    "floor.time",
+                    "r")],
+      caption="Regression parameters, time at peak, and value of peak by type of metal and sample",
+      row.names = F,
+      booktabs=T,
+      digits=2,
+      col.names = c("Sample", "Metal", "Intercept", "alpha", "beta", "time (days)", "amplitude") ) %>%
+  add_header_above(c(" " =2, "Regression parameters" = 3, "Timing and amplitude"=2)) %>%
+  collapse_rows(columns=1, valign="top")
+
+
+```
+
+<br><br><br>
+
+<!-- Source of flow diagram: https://app.diagrams.net/. Open file titled, 'season-ms-flow.drawio' in web site. -->
+
+
+![Figure S1. Participant flow diagram](season-ms-flow.png)
+
+<br><br><br>
+
+![Figure S2. Boxplots and fitted regression model values by month and metal for primary sample](rti-boxplots.png)
+
+<!-- ![Primary sample -- alternate figure](rti-boxplots2.png) -->
+
+<br><br><br>
+
+![Figure S3. Boxplots and fitted regression model values by month and metal for replication sample](dart-boxplots.png)
+
+<!-- ![Primary sample -- alternate figure](dart-boxplots2.png) -->
+
+
+
+
+<br><br><br>
+
+![Figure S4. Circular histogram for primary sample](rti-rose.png)
+
+<br><br><br>
+
+![Figure S5. Circular histogram for replication sample](dart-rose.png)

@@ -1,0 +1,61 @@
+---
+title: 'Assess racial/ethnic differences across month for RTI sample'
+author: "Katie Wojcik and Ann Von Holle"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+geometry: margin=1.5cm
+urlcolor: blue
+linkcolor: magenta
+citecolor: red
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,
+                      fig.pos = 'H',
+                      results="markup",
+                      messages=F)
+```
+
+```{r, include=F}
+# bring in packages 
+require(knitr)
+require(haven)
+require(data.table)
+require(tidyr)
+require(dplyr)
+require(gmodels)
+```
+
+
+```{r}
+# source: seasonal_variation_function_20221104.Rmd
+```
+
+
+```{r, include=F}
+load(file="seasonal-output.RData") # objects in file: rti.models, dart.models, descriptives2, metals.list.rti, metals.list.dart, newdat.both, summary.metals,      bplot.r, bplot.d, bplot.r2, bplot.d2, mdc, # data
+
+```
+
+
+```{r}
+# source: http://analyticswithr.com/contingencytables.html#table,_column,_and_row_proportions
+mdc.rti = mdc[mdc$study.split2==1,]
+
+with(mdc.rti, CrossTable(month, SE_RACE_ETH,
+                     prop.r=T,
+                     prop.c=F,
+                     prop.t=F, 
+                     prop.chisq = F,
+                     digits=2,
+                     chisq=T))
+```

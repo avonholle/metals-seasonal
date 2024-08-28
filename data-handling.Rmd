@@ -1,0 +1,223 @@
+---
+title: "Data handling for the dr00224_05_01.sas7bdat data set"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: united
+    toc: yes
+fig.cap: yes
+editor_options:
+  chunk_output_type: console
+geometry: margin=1.5cm
+urlcolor: blue
+linkcolor: magenta
+citecolor: red
+---
+
+<!-- NOTE: Only run if new data. -->
+
+# Data handling 
+
+```{r , include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      eval=F, # set to T if reading updated data
+                      results = 'markup',
+                      warning = F,
+                      tidy.opts=list(width.cutoff=100),
+                      tidy=TRUE,
+                      comment=NA,
+                      prompt=F,
+                      cache=F)
+
+#runif(1, 0, 10^8)
+set.seed(74268794)
+
+```
+
+
+```{r, include=F, eval=T}
+# bring in packages
+
+require(haven)
+
+require(labelled)
+require(tableone)
+require(summarytools)
+
+library(tidyverse)  # general use ----
+library(here)       # file paths  ----
+library(sjlabelled) # more tools for labelled data ----
+
+```
+
+
+```{r, echo=FALSE, eval=T}
+saspath <- 'C:/Program Files/SASHome/SASFoundation/9.4/sas.exe'
+sasopts <- "-nosplash -log 'c:\\temp' -ls 80 -ps 60  -nocenter -nodate -nofmterr" # see http://bit.ly/1QB4ZTb
+```
+
+
+```{r, engine='sas', engine.path=saspath, engine.opts=sasopts, results='markup', echo=TRUE, message=T, warning=FALSE, eval=F}
+
+* GET the formats that are all missing.;
+* NOTE: I moved the SAS formats to the temp folder below to run this in SAS first.;
+
+LIBNAME fdata_in "C:\temp\formats"; 
+LIBNAME fcat_out "C:\temp\formats";
+PROC FORMAT CNTLIN=fdata_in.sisformats_data  LIBRARY=fcat_out.sisformats; 
+RUN;
+
+LIBNAME libf "C:\temp\formats";
+OPTIONS NOFMTERR FMTSEARCH=(libf.sisformats);
+
+* get list of variables;
+proc contents data=libf.sisformats_data order=varnum;
+run;
+
+* Look at missing for char and numeric variables.
+proc format;
+ value $miss " "="missing"
+ other="nomissing";
+run;
+
+proc freq data=libf.sisformats_data;  
+tables _character_ / missing; 
+format _character_ $miss.;
+run;
+* LANGUAGE, DATATYPE, DIG3SEP, DECSEP, FILL, PREFIX ;
+* are all missing. remove.;
+
+proc means data=libf.sisformats_data nmiss n;  
+run;
+```
+
+<!-- Source for SAS code below: https://nih.sharepoint.com/sites/NIEHS-Von-Holle-BCBB-Postdoc/Shared Documents/General/Sister Study Data/Create the Sister Study format catalog on your system.doc -->
+
+
+```{r, engine='sas', engine.path=saspath, engine.opts=sasopts, results='markup', echo=TRUE, message=T, warning=FALSE, eval=F}
+OPTIONS NOFMTERR NONOTES;
+*OPTIONS NONOTES NOSTIMER NOSOURCE NOSYNTAXCHECK;
+
+libname libf "C:\Users\vonholleaf\National Institutes of Health\NIEHS-Von Holle BCBB Postdoctoral work - General\Sister Study Data\formats";
+
+data libf.sisformats_datasub; 
+set libf.sisformats_data(keep=fmtname start end label min max default length); 
+where fmtname not in ('LANGUAGE', 
+                      'DATATYPE', 
+                      'DIG3SEP', 
+                      'DECSEP', 
+                      'FILL', 
+                      'PREFIX'); * See code above to find out which variables to remove.;
+run; 
+
+LIBNAME fcat_out "C:\Users\vonholleaf\National Institutes of Health\NIEHS-Von Holle BCBB Postdoctoral work - General\Sister Study Data\formats-subset";
+
+PROC FORMAT CNTLIN=libf.sisformats_datasub LIBRARY=fcat_out.sisformats; 
+RUN;
+
+```
+
+This format file in the formats-subset folder, .sas7bcat, works. Assuming the haven package has problems reading in columns from a format file with no values in them.
+
+
+
+
+```{r, echo=TRUE}
+# only re-run if new data
+
+#setwd("C:/Users/vonholleaf/National Institutes of Health/NIEHS-Von Holle BCBB Postdoctoral work - General/Sister Study Data/")
+#getwd()
+
+# read original SAS data into R
+df224_5_1 =  read_sas(data_file="C:/temp/dr00224_05_01/dr00224_05_01.sas7bdat",
+                 catalog_file = "~/formats-subset/sisformats.sas7bcat" ) # data received 20220607
+# NOTE: for some reason I can't read the .sas7bdat file when on OneDrive. Transferred to C drive location to run.
+
+class(df224_5_1)
+
+save(df224_5_1, file="dr2240501.RData")
+
+```
+
+```{r, eval=T, results="hide", echo=T}
+load("dr2240501.RData")
+
+# Example how you can use formats from haven
+class(df224_5_1$AL_DrinkCat6)
+table(as_factor(df224_5_1$AL_DrinkCat6))
+
+
+```
+
+```{r, eval=F, include=F}
+# NOTE: this does not work because there are too many variables.
+# Source: https://www.pipinghotdata.com/posts/2020-12-23-leveraging-labelled-data-in-r/
+
+# create data dictionary ----
+dictionary <- labelled::generate_dictionary(df224_5_1)
+
+```
+
+
+
+```{r, echo=F, results='hide'}
+
+# data handling
+dfSummary(df224_5_1["AL_DrinkCat6"])
+df = dfSummary(as_factor(df224_5_1["AL_DrinkCat6"]))
+
+# convert variables with levels to a factor
+
+df1 = df224_5_1
+
+# find variables that have levels
+factor.vars = sapply(df1, is_labelled)
+head(factor.vars)
+names.factor.vars = names(df1)[factor.vars]
+
+# convert to a factor variabl
+df1[,names.factor.vars] <- lapply(df1[,factor.vars], as_factor )
+table(df1$dh_bk_preg_yn)
+class(df1$dh_bk_preg_yn)
+
+print(dfSummary(as_factor(df224_5_1$AL_DrinkCat6), 
+                varnumbers   = FALSE, 
+                valid.col    = FALSE, 
+                graph.magnif = 0.76),
+      method = 'render')
+
+save(df1, file="df224_05_01_convert.RData")
+```
+
+
+
+
+```{r, eval=T, results='asis'}
+load(file="df224_05_01_convert.RData")
+# source: https://mran.microsoft.com/snapshot/2018-06-06/web/packages/summarytools/vignettes/Introduction.html#:~:text=summarytools%20is%20an%20R%20package,proportions%20and%20missing%20data%20information.
+
+# print(dfSummary(df1, 
+#           plain.ascii = FALSE, 
+#           style = "grid",
+#           col.widths = c(40,  # varnum
+#                               80,  # varnames
+#                               80, # label
+#                               200, # stats/Values 
+#                               120, # freqs
+#                               120, # graph
+#                               40, # valid
+#                               16   # missing 
+#                               )))
+
+
+
+print(dfSummary(df1, 
+                plain.ascii = FALSE, 
+                style = 'grid', 
+                graph.magnif = 0.85, 
+                tmp.img.dir = "/tmp", 
+                col.widths = c(40, 80, 80, 200, 120, 120, 40, 16), 
+                headings = FALSE),
+      method = "render")
+
+```

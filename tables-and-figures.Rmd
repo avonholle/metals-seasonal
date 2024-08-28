@@ -1,0 +1,167 @@
+--- 
+title: "Tables and Figures"
+description: Summary of analyses
+editor_options:
+  chunk_output_type: console
+output: 
+  officedown::rdocx_document:
+    mapstyles:
+      Normal: ['First Paragraph']
+link-citations: yes
+linkcolor: blue
+citecolor: blue
+always_allow_html: yes
+urlcolor: blue
+geometry: margin=1cm
+---
+
+<!-- NOTE: all information for this file take from ~\National Institutes of Health\NIEHS-Von Holle BCBB Postdoctoral work - General\seasonal patterns\scripts\seasonal_variation_function_20221104.Rmd -->
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      eval = T, 
+                      fig.width=6,
+                      fig.height=6,
+                      fig.cap=T,
+                      message=F,
+                      float=F,
+                      fig.pos="H",
+                      results = 'markup', # hide all results
+                      warning = F)
+
+```
+
+
+```{r, include=F, eval=T}
+require(knitr)
+require(kableExtra)
+require(stargazer) 
+require(nlme)
+require(tidyr)
+require(ggplot2)
+require(gtsummary) # this table making package works better with haven objects
+require(stringr)
+require(flextable)
+
+```
+
+
+```{r, child = "seasonal_variation_function_20221104.Rmd", eval=F}
+```
+
+
+```{r, child = "section3.Rmd", eval=F}
+```
+
+
+```{r}
+
+# source: seasonal_variation_function_20221104.Rmd
+load(file="seasonal-output.RData") # rti.models, dart.models, descriptives2, metals.list.rti, metals.list.dart,   newdat.both, summary.metals, bplot.r, bplot.d, bplot.r2, bplot.d2,     mdc,  newdat.both.boot data
+
+# source: section3.Rmd
+load(file="overlap.RData") # object: model.info
+
+```
+
+Manuscript tables and figures
+
+Table 1. Sample characteristics
+
+```{r}
+
+t1.2 = tbl_summary(descriptives2, 
+                   by=study) %>%
+  modify_caption(caption="Sample characteristics") %>%
+  bold_labels() %>%
+  as_flex_table
+
+t1.2
+```
+
+<br><br><br>
+
+```{r, eval=F, include=F}
+# NOTE: this will not work with flextable (and directly into a Word table)
+t1.2.ov = add_overall(
+  t1.2,
+  last = FALSE,
+  col_label = NULL,
+  statistic = NULL,
+  digits = NULL)
+
+```
+
+
+
+
+```{r}
+
+# source: from seasonal_variation_function_20221104.Rmd, seasonal-output.RData
+boot.dat = newdat.both.boot[c("sample",
+                    "metal",
+                    "r.ci",
+                    "time.ci")]
+boot.dat$order = 1:nrow(boot.dat)
+boot.dat$metal = tolower(boot.dat$metal)
+
+# make new metals name
+
+metals.list =  c( "as", "cd", "co", "cr", "cu",
+                  "fe", "mn", "mo", "ni", "pb", "sb",
+                  "se", "sn", "zn", "al", "hg", "va")
+
+metals.list.title = c( "Arsenic (As)", 
+                       "Cadmium (Cd)", 
+                       "Cobalt (Co)", 
+                       "Chromium (Cr)",
+                       "Copper (Cu)",
+                       "Iron (Fe)", 
+                       "Manganese (Mn)",
+                       "Molybdenum (Mo)", 
+                       "Nickel (Ni)",
+                       "Lead (Pb)", 
+                       "Antimony (Sb)",
+                       "Selenium (Se)",
+                       "Tin (Sn)",
+                       "Zinc (Zn)",
+                       "Aluminum (Al)",
+                       "Mercury (Hg)",
+                       "Vanadium (V)")
+
+met.dat = data.frame(metal=metals.list,
+                     metals.list.title)
+
+boot.dat2 = merge(boot.dat, met.dat, by="metal")
+
+boot.dat2 = boot.dat2[order(boot.dat2$order),]
+
+cross = boot.dat2  %>% 
+  select(-order, -metal) %>%
+    pivot_wider(names_from = sample, values_from = c('r.ci', 'time.ci'))
+
+#colnames(cross) = c("Metal", rep(c("Amplitude", "Time"), 2))
+
+ft1 = cross %>% 
+  flextable() 
+
+ft2 = set_header_labels(ft1, 
+                        metals.list.title = "Metals",
+                        r.ci_Primary = "Amplitude",
+                        time.ci_Primary = "Time",
+                        r.ci_Secondary = "Amplitude",
+                        time.ci_Secondary = "Time")
+
+ft3 = add_header_row(ft2, values = c("", rep(c("Primary", "Secondary"),2)),
+               #colwidths=c(1,2,2), 
+               top=T)
+
+ft3 = width(ft3, width=2)
+
+ft3 %>%
+  set_caption(caption="Table 2. Time at peak and amplitude by type of metal and sample") 
+
+
+```
+

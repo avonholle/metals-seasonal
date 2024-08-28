@@ -1,0 +1,220 @@
+---
+title: 'Seasonal patterns in toenail metals: compare overlapping samples'
+author: "Katie Wojcik and Ann Von Holle"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '1'
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+geometry: margin=1.5cm
+urlcolor: blue
+linkcolor: magenta
+citecolor: red
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos = 'H',
+                      messages=F)
+```
+
+```{r}
+# bring in packages 
+require(knitr)
+require(haven)
+require(data.table)
+require(ggplot2)
+require(kableExtra)
+require(labelled)
+require(gtsummary) # this table making package works better with haven objects
+library(dplyr)
+library(tidyr)
+library(plyr)
+library(grid)
+require(boot)
+require(tableone)
+library(tidyverse)
+require(gridExtra)
+require(cowplot)
+library(descr)
+library(readxl)
+require(stargazer)
+require(plotrix)
+```
+
+
+```{r}
+
+# source: seasonal_variation_function_20221104.Rmd
+
+load(file="seasonal-output.RData") # objects in file: rti.models, dart.models, descriptives2, metals.list.rti, metals.list.dart, newdat.both, summary.metals,      bplot.r, bplot.d, bplot.r2, bplot.d2, mdc, # data
+
+```
+
+```{r}
+# get overlap sample between rti and dartmouth
+
+mdc.overlap = mdc %>% 
+  filter(study2==1)
+
+# check
+dim(mdc.overlap) # 94
+```
+
+
+```{r}
+
+metals.list.title = c( "Arsenic (As)", 
+                       "Cadmium (Cd)", 
+                       "Cobalt (Co)", 
+                       "Chromium (Cr)",
+                       "Copper (Cu)",
+                       "Iron (Fe)", 
+                       "Manganese (Mn)",
+                       "Molybdenum (Mo)", 
+                       "Nickel (Ni)",
+                       "Lead (Pb)", 
+                       "Antimony (Sb)",
+                       "Selenium (Se)",
+                       "Tin (Sn)",
+                       "Zinc (Zn)")
+
+
+
+rti = c( 
+         'RTI_Toenail_as_Adj', 
+         'RTI_Toenail_cd_Adj',
+         'RTI_Toenail_co_Adj',
+         'RTI_Toenail_cr_Adj',
+         'RTI_Toenail_cu_Adj',
+         'RTI_Toenail_fe_Adj', 
+         'RTI_Toenail_mn_Adj', 
+         'RTI_Toenail_mo_Adj', 
+         'RTI_Toenail_ni_Adj', 
+         'RTI_Toenail_pb_Adj', 
+         'RTI_Toenail_sb_Adj', 
+         'RTI_Toenail_se_Adj', 
+         'RTI_Toenail_sn_Adj', 
+         'RTI_Toenail_zn_Adj')
+  
+dart = c(
+         'DC_Baseline_Toenail_As_Adj', 
+         'DC_Baseline_Toenail_Cd_Adj', 
+          'DC_Baseline_Toenail_Co_Adj',
+          'DC_Baseline_Toenail_Cr_Adj',
+         'DC_Baseline_Toenail_Cu_Adj', 
+         'DC_Baseline_Toenail_Fe_Adj', 
+         'DC_Baseline_Toenail_Mn_Adj', 
+         'DC_Baseline_Toenail_Mo_Adj', 
+         'DC_Baseline_Toenail_Ni_Adj', 
+         'DC_Baseline_Toenail_Pb_Adj',
+         'DC_Baseline_Toenail_Sb_Adj', 
+         'DC_Baseline_Toenail_Se_Adj', 
+         'DC_Baseline_Toenail_Sn_Adj', 
+         'DC_Baseline_Toenail_Zn_Adj') 
+length(rti)
+length(dart)
+length(metals.list.title)
+
+```
+
+
+
+```{r}
+# get correlation and diff by study
+
+# change data frame from long to wide
+
+
+# Function to do:
+# 1) correlations
+# 2) mean differences
+
+get.compare = function(outcome.dart, outcome.rti, outcome.title){
+  
+  # outcome.rti = 'RTI_Toenail_as_Adj'; outcome.dart = 'DC_Baseline_Toenail_As_Adj' ; outcome.title = "as"
+  # outcome.rti = 'RTI_Toenail_co_Adj'; outcome.dart = 'DC_Baseline_Toenail_Co_Adj'; outcome.title = "co"
+  # column with metal variable name
+  dat=mdc.overlap
+
+  colnum.metal.dart = which(names(dat) %in% outcome.dart)
+  dat$metal.dart = as.numeric(dat[, colnum.metal.dart])
+
+  colnum.metal.rti = which(names(dat) %in% outcome.rti)
+  dat$metal.rti = as.numeric(dat[, colnum.metal.rti])
+ 
+  # 1. correlations
+  corr1 <- cor.test(dat$metal.dart, dat$metal.rti, method="spearman")
+  ct = min(length(dat$metal.dart), length(dat$metal.rti))
+
+  # 2. mean diff
+  diffs = with(dat, metal.dart - metal.rti) # secondary - primary
+  
+  #summary(diffs)
+  mean.diffs = mean(diffs, na.rm=T)
+  sd.diffs = sd(diffs, na.rm=T)
+  lci.diffs = mean.diffs - 1.96*sd.diffs/sqrt(length(diffs))
+  uci.diffs = mean.diffs + 1.96*sd.diffs/sqrt(length(diffs))
+  
+  # paired t-test of diffs
+  ttest = with(dat, t.test(metal.dart, metal.rti, paired=T,
+                           var.equal=F)); ttest
+  names(ttest)
+  ttest$p.value
+  ttest$statistic
+  
+  data.frame(corr1$estimate, mean.diffs, sd.diffs, lci.diffs, uci.diffs,
+                    n.rti = length(!is.na(dat$metal.rti)),
+                    n.dart = length(!is.na(dat$metal.dart)),
+                    metal = outcome.title)
+  
+  return(data.frame(corr1$estimate, mean.diffs, sd.diffs, lci.diffs, uci.diffs,
+                    n.rti = length(!is.na(dat$metal.rti)),
+                    n.dart = length(!is.na(dat$metal.dart)),
+                    test = round(ttest$p.value,3),
+                    metal = outcome.title)) 
+  
+}
+
+```
+
+```{r}
+
+# Run function over all metals
+run.models = mapply(get.compare, 
+                    outcome.dart = dart,
+                    outcome.rti = rti,
+                    outcome.title=metals.list.title,
+                    USE.NAMES = T,
+                    SIMPLIFY=F)
+
+run.models[[1]]
+model.info = ldply(run.models)
+
+model.info
+
+
+save(model.info, file="overlap.RData")
+
+```
+
+```{r}
+kable(model.info[c("metal",
+                   "corr1.estimate",
+                   "mean.diffs",
+                   "sd.diffs",
+                   "lci.diffs",
+                   "uci.diffs",
+                   "test")],
+      caption="Correlation and mean difference for paired metals in overlap between two samples (n=94)",
+      row.names = F,
+      booktabs=T,
+      digits=3,
+      col.names = c("Metal", "Spearman correlation", "Mean difference", "SD", "lower 95% ci", "upper 95% ci", "p-value, paired t-test") )
+
+```
